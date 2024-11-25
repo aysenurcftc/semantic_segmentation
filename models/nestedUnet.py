@@ -36,6 +36,9 @@ class Upsample(nn.Module):
 
 
 class NestedUNet(nn.Module):
+    """
+    Paper : https://arxiv.org/pdf/1807.10165
+    """
     def __init__(self, in_channels=3, out_channels=1):
         super(NestedUNet, self).__init__()
 

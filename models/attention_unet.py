@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 
 
-
 class DoubleConv(nn.Module):
     def __init__(self, in_channels: int, out_channels: int):
         super().__init__()
@@ -71,64 +70,71 @@ class AttentionGate(nn.Module):
 
 
 class AttentionUnet(nn.Module):
+    """
+        Attention Unet implementation
+        Paper: https://arxiv.org/pdf/1804.03999
+        """
     def __init__(self, in_channels: int, out_channels: int):
         super().__init__()
 
+        n1 = 64  # Initial number of filters
+        filters = [n1, n1 * 2, n1 * 4, n1 * 8, n1 * 16]
+
         # Encoder path
-        self.enc1_conv = DoubleConv(in_channels, 64)
-        self.enc1_pool = DownSample()
+        self.down_conv1 = DoubleConv(in_channels, filters[0])
+        self.down_sample1 = DownSample()
 
-        self.enc2_conv = DoubleConv(64, 128)
-        self.enc2_pool = DownSample()
+        self.down_conv2 = DoubleConv(filters[0], filters[1])
+        self.down_sample2 = DownSample()
 
-        self.enc3_conv = DoubleConv(128, 256)
-        self.enc3_pool = DownSample()
+        self.down_conv3 = DoubleConv(filters[1], filters[2])
+        self.down_sample3 = DownSample()
 
         # Bottleneck
-        self.bottleneck = DoubleConv(256, 512)
+        self.middle_conv = DoubleConv(filters[2], filters[3])
 
         # Decoder path
-        self.dec1_up = UpConv(512, 256)
-        self.dec1_ag = AttentionGate([256, 256], 256)
-        self.dec1_conv = DoubleConv(512, 256)
+        self.up_sample1 = UpConv(filters[3], filters[2])
+        self.dec1_ag = AttentionGate([filters[2], filters[2]], filters[2])
+        self.dec1_conv = DoubleConv(filters[3], filters[2])
 
-        self.dec2_up = UpConv(256, 128)
-        self.dec2_ag = AttentionGate([128, 128], 128)
-        self.dec2_conv = DoubleConv(256, 128)
+        self.up_sample2 = UpConv(filters[2], filters[1])
+        self.dec2_ag = AttentionGate([filters[1], filters[1]], filters[1])
+        self.dec2_conv = DoubleConv(filters[2], filters[2])
 
-        self.dec3_up = UpConv(128, 64)
-        self.dec3_ag = AttentionGate([64, 64], 64)
-        self.dec3_conv = DoubleConv(128, 64)
+        self.up_sample3 = UpConv(filters[1], filters[0])
+        self.dec3_ag = AttentionGate([filters[0], filters[0]], filters[0])
+        self.dec3_conv = DoubleConv(filters[1], filters[0])
 
         # Output layer
-        self.output = nn.Conv2d(64, out_channels, kernel_size=1)
+        self.output = nn.Conv2d(filters[0], out_channels, kernel_size=1)
 
     def forward(self, x):
         # Encoder
-        s1 = self.enc1_conv(x)
-        p1 = self.enc1_pool(s1)
+        s1 = self.down_conv1(x)
+        p1 = self.down_sample1(s1)
 
-        s2 = self.enc2_conv(p1)
-        p2 = self.enc2_pool(s2)
+        s2 = self.down_conv2(p1)
+        p2 = self.down_sample2(s2)
 
-        s3 = self.enc3_conv(p2)
-        p3 = self.enc3_pool(s3)
+        s3 = self.down_conv3(p2)
+        p3 = self.down_sample3(s3)
 
         # Bottleneck
-        b = self.bottleneck(p3)
+        b = self.middle_conv(p3)
 
         # Decoder
-        d1 = self.dec1_up(b)
+        d1 = self.up_sample1(b)
         s3 = self.dec1_ag(d1, s3)
         d1 = torch.cat([d1, s3], dim=1)
         d1 = self.dec1_conv(d1)
 
-        d2 = self.dec2_up(d1)
+        d2 = self.up_sample2(d1)
         s2 = self.dec2_ag(d2, s2)
         d2 = torch.cat([d2, s2], dim=1)
         d2 = self.dec2_conv(d2)
 
-        d3 = self.dec3_up(d2)
+        d3 = self.up_sample3(d2)
         s1 = self.dec3_ag(d3, s1)
         d3 = torch.cat([d3, s1], dim=1)
         d3 = self.dec3_conv(d3)
@@ -139,8 +145,3 @@ class AttentionUnet(nn.Module):
 
 
 
-if __name__ == "__main__":
-    x = torch.randn((8, 3, 256, 256))
-    model = AttentionUnet(in_channels=3, out_channels=1)
-    output = model(x)
-    print("Output shape:", output.shape)
