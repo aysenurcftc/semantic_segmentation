@@ -38,6 +38,3 @@ pip install -r requirements.txt
 
 ![attentiounet](https://github.com/aysenurcftc/semantic_segmentation/blob/main/model_img/attentionunet.jpg)
 
-
-## Visualization
-
